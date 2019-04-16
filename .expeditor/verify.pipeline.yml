@@ -73,7 +73,7 @@ steps:
 
   - label: "[unit] :linux: butterfly"
     command:
-      - ./test/run_cargo_test.sh --nightly --features "deadlock_detection" --test-options "--test-threads=1" butterfly
+      - ./test/run_cargo_test.sh --nightly --features "lock_as_mutex deadlock_detection" --test-options "--test-threads=1" butterfly
     agents:
       queue: 'default-privileged'
     plugins:
@@ -249,7 +249,7 @@ steps:
 
   - label: "[unit] :linux: sup"
     command:
-      - ./test/run_cargo_test.sh --features "ignore_integration_tests"  sup
+      - ./test/run_cargo_test.sh --features "ignore_integration_tests lock_as_mutex"  sup
     agents:
       queue: 'default-privileged'
     plugins:
@@ -310,7 +310,7 @@ steps:
 
   - label: "[unit] :windows: butterfly"
     command:
-      - ./test/run_cargo_test.ps1 butterfly -Nightly -Features "deadlock_detection" -TestOptions "--test-threads=1"
+      - ./test/run_cargo_test.ps1 butterfly -Nightly -Features "lock_as_mutex deadlock_detection" -TestOptions "--test-threads=1"
     agents:
       queue: 'default-windows-privileged'
     timeout_in_minutes: 20
@@ -401,7 +401,7 @@ steps:
   - label: "[unit] :windows: sup"
     command:
       # This test has test (not code) concurrency issues and will fail if we don't limit it
-      - ./test/run_cargo_test.ps1 sup -TestOptions "--test-threads=1"
+      - ./test/run_cargo_test.ps1 sup -Features "lock_as_mutex" -TestOptions "--test-threads=1"
     agents:
       queue: 'default-windows-privileged'
     timeout_in_minutes: 40
