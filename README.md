@@ -14,9 +14,9 @@ See a quick demo of how to build, deploy and manage an application with Habitat:
 
 **Project State**: [Active](https://github.com/chef/chef-oss-practices/blob/master/repo-management/repo-states.md#active)
 
-**Issues Response SLA**: 5 business days
+**Issues Response Time Max**: 5 business days
 
-**Pull Request Response SLA**: 5 business days
+**Pull Request Response Time Max**: 5 business days
 
 [![Build, Deploy and Manage with Habitat (5:33)](images/overview-youtube-image.jpg)](http://www.youtube.com/watch?v=VW1DwDezlqM)
 
