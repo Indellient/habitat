@@ -92,10 +92,10 @@ pub fn start(ui: &mut UI,
         None => None,
     };
 
-    if with_callbacks {
+    if with_callbacks || with_all {
         data.insert("with_callbacks".to_string(), "true".to_string());
     }
-    if with_docs {
+    if with_docs || with_all {
         data.insert("with_docs".to_string(), "true".to_string());
     }
     // Add all environment variables that start with "pkg_" as variables in
