@@ -1,17 +1,3 @@
-// Copyright (c) 2016-2017 Chef Software Inc. and/or applicable contributors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 //! The ServiceConfig rumor.
 //!
 //! Holds the toml configuration injected for a service.
@@ -48,13 +34,14 @@ pub struct ServiceConfig {
     pub config:        Vec<u8>, // TODO: make this a String
     pub uuid:          String,
     pub ttl:           RumorLifespan,
+    pub garbage:       bool,
 }
 
 impl fmt::Display for ServiceConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f,
-               "ServiceConfig i/{} m/{} sg/{} ttl/{}",
-               self.incarnation, self.from_id, self.service_group, self.ttl)
+               "ServiceConfig i/{} m/{} sg/{} ttl/{} g/{}",
+               self.incarnation, self.from_id, self.service_group, self.ttl, self.garbage)
     }
 }
 
@@ -88,7 +75,8 @@ impl ServiceConfig {
                         encrypted: false,
                         config,
                         uuid: Uuid::new_v4().to_simple_ref().to_string(),
-                        ttl: RumorLifespan::service_config() }
+                        ttl: RumorLifespan::service_config(),
+                        garbage: false }
     }
 
     pub fn encrypt(&mut self, user_pair: &BoxKeyPair, service_pair: &BoxKeyPair) -> Result<()> {
@@ -151,7 +139,8 @@ impl FromProto<ProtoRumor> for ServiceConfig {
                            config: payload.config.unwrap_or_default(),
                            uuid: payload.uuid
                                         .unwrap_or(Uuid::new_v4().to_simple_ref().to_string()),
-                           ttl })
+                           ttl,
+                           garbage: false })
     }
 }
 
@@ -193,6 +182,10 @@ impl Rumor for ServiceConfig {
     fn lifespan_as_mut(&mut self) -> &mut RumorLifespan { &mut self.ttl }
 
     fn ttl() -> Duration { Duration::hours(1) }
+
+    fn is_garbage(&self) -> bool { self.garbage }
+
+    fn mark_garbage(&mut self) { self.garbage = true }
 }
 
 #[cfg(test)]

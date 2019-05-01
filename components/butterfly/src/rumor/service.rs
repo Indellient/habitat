@@ -36,13 +36,14 @@ pub struct Service {
     pub sys:           SysInfo,
     pub uuid:          String,
     pub ttl:           RumorLifespan,
+    pub garbage:       bool,
 }
 
 impl fmt::Display for Service {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f,
-               "Service i/{} m/{} sg/{} ttl/{}",
-               self.incarnation, self.member_id, self.service_group, self.ttl)
+               "Service i/{} m/{} sg/{} ttl/{} g/{}",
+               self.incarnation, self.member_id, self.service_group, self.ttl, self.garbage)
     }
 }
 
@@ -116,7 +117,8 @@ impl Service {
                           })
                           .unwrap_or_default(),
                   uuid: Uuid::new_v4().to_simple_ref().to_string(),
-                  ttl: RumorLifespan::service() }
+                  ttl: RumorLifespan::service(),
+                  garbage: false }
     }
 }
 
@@ -148,7 +150,8 @@ impl FromProto<newscast::Rumor> for Service {
                                  .and_then(SysInfo::from_proto)?,
                      uuid: payload.uuid
                                   .unwrap_or(Uuid::new_v4().to_simple_ref().to_string()),
-                     ttl })
+                     ttl,
+                     garbage: false })
     }
 }
 
@@ -193,7 +196,11 @@ impl Rumor for Service {
     fn lifespan_as_mut(&mut self) -> &mut RumorLifespan { &mut self.ttl }
 
     // TODO JB: don't leave this at this value - for testing only
-    fn ttl() -> Duration { Duration::minutes(1) }
+    fn ttl() -> Duration { Duration::seconds(20) }
+
+    fn is_garbage(&self) -> bool { self.garbage }
+
+    fn mark_garbage(&mut self) { self.garbage = true }
 }
 
 #[derive(Debug, Clone, Serialize)]

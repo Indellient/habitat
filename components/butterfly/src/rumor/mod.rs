@@ -41,7 +41,8 @@ use serde::{ser::{SerializeMap,
 use std::{collections::{hash_map::Entry,
                         HashMap},
           default::Default,
-          fmt,
+          fmt::{self,
+                Debug},
           ops::Deref,
           result,
           sync::{atomic::{AtomicUsize,
@@ -56,7 +57,7 @@ lazy_static! {
                                   &["rumor"]).unwrap();
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum RumorKind {
     Departure(Departure),
     Election(Election),
@@ -181,7 +182,7 @@ impl RumorKey {
 
 /// A representation of a Rumor; implemented by all the concrete types we share as rumors. The
 /// exception is the Membership rumor, since it's not actually a rumor in the same vein.
-pub trait Rumor: Message<ProtoRumor> + Sized {
+pub trait Rumor: Message<ProtoRumor> + Sized + Debug {
     fn kind(&self) -> RumorType;
     fn key(&self) -> &str;
     fn id(&self) -> &str;
@@ -191,6 +192,8 @@ pub trait Rumor: Message<ProtoRumor> + Sized {
     fn lifespan_as_mut(&mut self) -> &mut RumorLifespan;
     fn ttl() -> Duration;
     fn refresh(&mut self) { self.lifespan_as_mut().refresh(Self::ttl()); }
+    fn is_garbage(&self) -> bool;
+    fn mark_garbage(&mut self);
 }
 
 impl<'a, T: Rumor> From<&'a T> for RumorKey {
@@ -411,7 +414,6 @@ impl<T> RumorStore<T> where T: Rumor
     /// Insert a rumor into the Rumor Store. Returns true if the value didn't exist or if it was
     /// mutated; if nothing changed, returns false.
     pub fn insert(&self, mut rumor: T) -> bool {
-        // If we're inserting a rumor, it must be new, so let's ensure the expiration is refreshed
         rumor.refresh();
 
         let mut list = self.write_entries();
@@ -503,27 +505,52 @@ impl<T> RumorStore<T> where T: Rumor
 
     /// Partition the rumors in our rumor store into those that are expired and those that aren't.
     /// The return value is (expired, not_expired)
-    fn partitioned_rumors(&self, expiration_date: DateTime<Utc>) -> (Vec<T>, Vec<T>) {
+    // fn partitioned_rumors(&self, expiration_date: DateTime<Utc>) -> (Vec<T>, Vec<T>) {
+    //     self.read_entries()
+    //         .values()
+    //         .flat_map(HashMap::values)
+    //         .cloned()
+    //         .partition(|rumor| rumor.lifespan().expiration < expiration_date)
+    // }
+    fn partitioned_rumors<F>(&self, f: F) -> (Vec<T>, Vec<T>)
+        where F: FnMut(&T) -> bool
+    {
         self.read_entries()
             .values()
             .flat_map(HashMap::values)
             .cloned()
-            .partition(|rumor| rumor.lifespan().expiration < expiration_date)
+            .partition(f)
     }
 
     pub fn expired_rumors(&self, expiration_date: DateTime<Utc>) -> Vec<T> {
-        self.partitioned_rumors(expiration_date).0
+        // self.partitioned_rumors(expiration_date).0
+        self.partitioned_rumors(|rumor| rumor.lifespan().expiration < expiration_date)
+            .0
     }
 
     pub fn live_rumors(&self, expiration_date: DateTime<Utc>) -> Vec<T> {
-        self.partitioned_rumors(expiration_date).1
+        // self.partitioned_rumors(expiration_date).1
+        self.partitioned_rumors(|rumor| rumor.lifespan().expiration < expiration_date)
+            .1
     }
 
-    /// Remove all rumors that have expired from our rumor store.
-    pub fn purge_expired(&self, expiration_date: DateTime<Utc>) {
-        self.expired_rumors(expiration_date)
-            .iter()
-            .for_each(|r| self.remove(r.key(), r.id()))
+    pub fn garbage_rumors(&self) -> Vec<T> { self.partitioned_rumors(|rumor| rumor.is_garbage()).0 }
+
+    pub fn non_garbage_rumors(&self) -> Vec<T> {
+        self.partitioned_rumors(|rumor| rumor.is_garbage()).1
+        // let mut rumors = self.live_rumors(Utc::now());
+        // dbg!(&mut rumors);
+        // rumors.retain(|r| !r.is_garbage());
+        // dbg!(&mut rumors);
+        // rumors
+    }
+
+    /// Remove all rumors that have expired from our rumor store or are garbage
+    pub fn purge_expired_or_garbage(&self, expiration_date: DateTime<Utc>) {
+        // let mut rumors = self.expired_rumors(expiration_date);
+        // rumors.append(&mut self.garbage_rumors());
+        let rumors = self.garbage_rumors();
+        rumors.iter().for_each(|r| self.remove(r.key(), r.id()))
     }
 
     pub fn refresh(&self, key: &str, id: &str) {
@@ -533,8 +560,15 @@ impl<T> RumorStore<T> where T: Rumor
         }
     }
 
+    pub fn mark_garbage(&self, key: &str, id: &str) {
+        let mut list = self.write_entries();
+        if let Some(v) = list.get_mut(key).and_then(|r| r.get_mut(id)) {
+            v.mark_garbage();
+        }
+    }
+
     pub fn rumor_keys(&self) -> Vec<RumorKey> {
-        self.live_rumors(Utc::now())
+        self.non_garbage_rumors()
             .iter()
             .map(RumorKey::from)
             .collect()

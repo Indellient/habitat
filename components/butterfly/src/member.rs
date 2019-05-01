@@ -218,6 +218,13 @@ impl fmt::Display for Membership {
     }
 }
 
+impl PartialEq for Membership {
+    /// We ignore id in equality checking, because we only have one per service group
+    fn eq(&self, other: &Membership) -> bool {
+        self.member == other.member && self.health == other.health
+    }
+}
+
 impl Membership {
     /// See MemberList::insert
     fn newer_or_less_healthy_than(&self,

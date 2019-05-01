@@ -1,17 +1,3 @@
-// Copyright (c) 2017 Chef Software Inc. and/or applicable contributors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 //! Leader election.
 //!
 //! This module does leader election for services. It consists of an `Election` that implements
@@ -60,18 +46,20 @@ pub struct Election {
     pub votes:         Vec<String>,
     pub uuid:          String,
     pub ttl:           RumorLifespan,
+    pub garbage:       bool,
 }
 
 impl fmt::Display for Election {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f,
-               "Election m/{} sg/{}, t/{}, su/{}, st/{:?} ttl/{}",
+               "Election m/{} sg/{}, t/{}, su/{}, st/{:?} ttl/{} g/{}",
                self.member_id,
                self.service_group,
                self.term,
                self.suitability,
                self.status,
-               self.ttl)
+               self.ttl,
+               self.garbage)
     }
 }
 
@@ -98,7 +86,8 @@ impl Election {
                    },
                    votes: vec![from_id],
                    uuid: Uuid::new_v4().to_simple_ref().to_string(),
-                   ttl: RumorLifespan::election() }
+                   ttl: RumorLifespan::election(),
+                   garbage: false }
     }
 
     /// Insert a vote for the election.
@@ -168,7 +157,8 @@ impl FromProto<ProtoRumor> for Election {
                       votes: payload.votes,
                       uuid: payload.uuid
                                    .unwrap_or(Uuid::new_v4().to_simple_ref().to_string()),
-                      ttl })
+                      ttl,
+                      garbage: false })
     }
 }
 
@@ -243,6 +233,10 @@ impl Rumor for Election {
     fn lifespan_as_mut(&mut self) -> &mut RumorLifespan { &mut self.ttl }
 
     fn ttl() -> Duration { Duration::hours(1) }
+
+    fn is_garbage(&self) -> bool { self.garbage }
+
+    fn mark_garbage(&mut self) { self.garbage = true }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -273,6 +267,10 @@ impl ElectionUpdate {
         let election = Election::new(member_id, service_group, term, suitability, has_quorum);
         ElectionUpdate(election)
     }
+}
+
+impl PartialEq for ElectionUpdate {
+    fn eq(&self, other: &ElectionUpdate) -> bool { self.0 == other.0 }
 }
 
 impl ElectionRumor for ElectionUpdate {
@@ -325,6 +323,10 @@ impl Rumor for ElectionUpdate {
     fn lifespan_as_mut(&mut self) -> &mut RumorLifespan { &mut self.0.ttl }
 
     fn ttl() -> Duration { Duration::hours(1) }
+
+    fn is_garbage(&self) -> bool { self.0.garbage }
+
+    fn mark_garbage(&mut self) { self.0.garbage = true }
 }
 
 #[cfg(test)]

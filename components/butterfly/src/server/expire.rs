@@ -31,12 +31,14 @@ impl Expire {
             // JB TODO: How does this work for members, since members aren't /quite/
             // the same kind of rumor
             let now = Utc::now();
-            self.server.departure_store.purge_expired(now);
-            self.server.election_store.purge_expired(now);
-            self.server.update_store.purge_expired(now);
-            self.server.service_store.purge_expired(now);
-            self.server.service_config_store.purge_expired(now);
-            self.server.service_file_store.purge_expired(now);
+            self.server.departure_store.purge_expired_or_garbage(now);
+            self.server.election_store.purge_expired_or_garbage(now);
+            self.server.update_store.purge_expired_or_garbage(now);
+            self.server.service_store.purge_expired_or_garbage(now);
+            self.server
+                .service_config_store
+                .purge_expired_or_garbage(now);
+            self.server.service_file_store.purge_expired_or_garbage(now);
 
             thread::sleep(Duration::from_millis(LOOP_DELAY_MS));
         }

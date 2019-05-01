@@ -1,17 +1,3 @@
-// Copyright (c) 2016-2017 Chef Software Inc. and/or applicable contributors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 //! The ServiceFile rumor.
 //!
 //! Holds the toml configuration injected for a service.
@@ -47,13 +33,19 @@ pub struct ServiceFile {
     pub body:          Vec<u8>,
     pub uuid:          String,
     pub ttl:           RumorLifespan,
+    pub garbage:       bool,
 }
 
 impl fmt::Display for ServiceFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f,
-               "ServiceFile i/{} m/{} sg/{} fn/{} ttl/{}",
-               self.incarnation, self.from_id, self.service_group, self.filename, self.ttl)
+               "ServiceFile i/{} m/{} sg/{} fn/{} ttl/{} g/{}",
+               self.incarnation,
+               self.from_id,
+               self.service_group,
+               self.filename,
+               self.ttl,
+               self.garbage)
     }
 }
 
@@ -94,7 +86,8 @@ impl ServiceFile {
                       filename: filename.into(),
                       body,
                       uuid: Uuid::new_v4().to_simple_ref().to_string(),
-                      ttl: RumorLifespan::service_file() }
+                      ttl: RumorLifespan::service_file(),
+                      garbage: false }
     }
 
     /// Encrypt the contents of the service file
@@ -146,7 +139,8 @@ impl FromProto<ProtoRumor> for ServiceFile {
                          body: payload.body.unwrap_or_default(),
                          uuid: payload.uuid
                                       .unwrap_or(Uuid::new_v4().to_simple_ref().to_string()),
-                         ttl })
+                         ttl,
+                         garbage: false })
     }
 }
 
@@ -189,6 +183,10 @@ impl Rumor for ServiceFile {
     fn lifespan_as_mut(&mut self) -> &mut RumorLifespan { &mut self.ttl }
 
     fn ttl() -> Duration { Duration::hours(1) }
+
+    fn is_garbage(&self) -> bool { self.garbage }
+
+    fn mark_garbage(&mut self) { self.garbage = true }
 }
 
 #[cfg(test)]
