@@ -194,7 +194,7 @@ pub mod sync {
             Self { inner: InnerLock::new(val), }
         }
 
-        /// This acquires a read lock and will not deadlock if the same thread tries do acquire
+        /// This acquires a read lock and will not deadlock if the same thread tries to acquire
         /// the lock recursively. However, it may result in writer starvation. Once we are confident
         /// that all recursive locking has been eliminated, we may replace this implementation
         /// and try_read_for (or add an additional methods) to provide fair locking for readers
@@ -207,13 +207,18 @@ pub mod sync {
         #[cfg(feature = "lock_as_mutex")]
         pub fn read(&self) -> ReadGuard<T> {
             use parking_lot::deadlock;
-            use std::thread;
+            use std::{sync::atomic::{AtomicBool,
+                                     Ordering},
+                      thread};
 
-            if let Some(guard) = self.inner.try_lock_for(Duration::from_secs(5)) {
+            const MAX_LOCK_LATENCY: Duration = Duration::from_secs(5);
+
+            if let Some(guard) = self.inner.try_lock_for(MAX_LOCK_LATENCY) {
                 guard
             } else {
+                let waiting_on_lock = AtomicBool::new(true);
                 let detector = thread::spawn(move || {
-                    loop {
+                    while waiting_on_lock.load(Ordering::Relaxed) {
                         thread::sleep(Duration::from_secs(1));
                         let deadlocks = deadlock::check_deadlock();
                         if deadlocks.is_empty() {
@@ -231,8 +236,9 @@ pub mod sync {
                     }
                 });
                 let guard = self.inner
-                                .try_lock_for(Duration::from_secs(5))
+                                .try_lock_for(MAX_LOCK_LATENCY)
                                 .expect("timed out waiting for lock");
+                waiting_on_lock.store(false, Ordering::Relaxed);
                 detector.join().expect("join deadlock detector thread");
                 guard
             }
